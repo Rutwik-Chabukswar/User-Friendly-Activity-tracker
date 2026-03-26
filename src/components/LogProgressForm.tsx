@@ -30,26 +30,25 @@ export default function LogProgressForm({
     const amount = parseFloat(formData.get('amount') as string)
     const note = formData.get('note') as string
 
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      setError('You must be logged in')
+    // Client-side strict validation
+    if (amount > remaining) {
+      setError(`Cannot log more than remaining effort (${remaining} ${unit}).`)
       setLoading(false)
       return
     }
 
-    const { error: insertError } = await supabase.from('progress_logs').insert({
-      activity_id: activityId,
-      user_id: user.id,
-      amount,
-      note: note || null,
-    })
+    if (amount <= 0) {
+      setError('Amount must be greater than zero.')
+      setLoading(false)
+      return
+    }
 
-    if (insertError) {
-      setError(insertError.message)
+    // Call Server Action
+    const { logProgress } = await import('@/app/actions/progress')
+    const result = await logProgress(activityId, amount, note)
+
+    if (!result.success) {
+      setError(result.error || 'Failed to log progress.')
     } else {
       setSuccess(true)
       const form = e.currentTarget
@@ -82,6 +81,7 @@ export default function LogProgressForm({
               name="amount"
               type="number"
               min="0.1"
+              max={remaining}
               step="0.1"
               placeholder={`e.g., 2`}
               required
